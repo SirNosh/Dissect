@@ -1,0 +1,16 @@
+[vars]
+android_sdk_version = "21.0"
+
+[tools]
+rust = "1.85.1"
+node = "22.20.0"
+java = "21"
+android-sdk = "21.0"
+
+[env]
+ANDROID_HOME = "{{ env.HOME }}/.local/share/mise/installs/android-sdk/{{ vars.android_sdk_version }}"
+_.path = [
+  "{{ env.HOME }}/.local/share/mise/installs/android-sdk/{{ vars.android_sdk_version }}/cmdline-tools/{{ vars.android_sdk_version }}/bin",
+  "{{ env.HOME }}/.local/share/mise/installs/android-sdk/{{ vars.android_sdk_version }}/platform-tools",
+  "{{ env.HOME }}/.local/share/mise/installs/android-sdk/{{ vars.android_sdk_version }}/emulator",
+]
