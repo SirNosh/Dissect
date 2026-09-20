@@ -57,6 +57,29 @@ Install and authenticate at least one agent CLI:
 - [OpenCode](https://github.com/anomalyco/opencode)
 - [Pi](https://pi.dev)
 
+### Analysis API keys
+
+File-level Dissect uses **Gemini**. Architecture maps use **Grok**.
+
+1. Copy `packages/server/.env.example` to `packages/server/.env`.
+2. Add your keys:
+
+```bash
+GEMINI_API_KEY=your-gemini-key
+GROK_API_KEY=your-xai-key
+```
+
+Get a Gemini key from [Google AI Studio](https://aistudio.google.com/apikey). Get a Grok key from the [xAI console](https://console.x.ai/). `XAI_API_KEY` is accepted as an alias for `GROK_API_KEY`.
+
+Optional model overrides:
+
+```bash
+GEMINI_MODEL=gemini-2.5-flash
+GROK_MODEL=grok-4
+```
+
+Restart the daemon after changing keys. No analysis runs until you click Dissect or Dissect Diff.
+
 ### Desktop app
 
 Build the Electron app from this checkout (`npm run build:desktop`) or use a GitHub release when one is published. Opening the app starts the daemon.

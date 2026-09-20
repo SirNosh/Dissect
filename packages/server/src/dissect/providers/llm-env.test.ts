@@ -41,6 +41,20 @@ DISSECT_SPACETIMEDB_TOKEN=stdb-token
     });
   });
 
+  test("keeps Gemini and Grok keys and ignores daemon bind settings", () => {
+    const parsed = parseDissectLlmEnvFile(`
+PASEO_LISTEN=127.0.0.1:6767
+GEMINI_API_KEY=gemini-test
+GROK_API_KEY=grok-test
+XAI_API_KEY=xai-test
+`);
+    expect(parsed).toEqual({
+      GEMINI_API_KEY: "gemini-test",
+      GROK_API_KEY: "grok-test",
+      XAI_API_KEY: "xai-test",
+    });
+  });
+
   test("skips empty values and comments", () => {
     expect(
       parseDissectLlmEnvFile(`

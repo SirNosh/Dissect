@@ -34,6 +34,25 @@ export interface ResolvedProviderState {
   configurationHint: string | null;
 }
 
+export interface DissectAnalysisConfigs {
+  code: DissectProviderConfig | null;
+  architecture: DissectProviderConfig | null;
+  hint: string | null;
+}
+
+const GEMINI_DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
+const GEMINI_DEFAULT_MODEL = "gemini-2.5-flash";
+const GROK_DEFAULT_BASE_URL = "https://api.x.ai/v1";
+const GROK_DEFAULT_MODEL = "grok-4";
+
+function hasEnvValue(value: string | undefined): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function stripTrailingSlash(value: string): string {
+  return value.replace(/\/+$/, "");
+}
+
 /**
  * Resolve provider configuration from generic environment values.
  * DISSECT_LLM_BASE_URL / DISSECT_LLM_API_KEY / DISSECT_LLM_MODEL, with
@@ -59,6 +78,58 @@ export function resolveDissectProviderConfig(env: Record<string, string | undefi
     return { config: null, hint: "Configure DISSECT_LLM_API_KEY, then retry." };
   }
   return { config: { baseUrl, apiKey, model }, hint: null };
+}
+
+function resolveGeminiConfig(
+  env: Record<string, string | undefined>,
+): DissectProviderConfig | null {
+  if (!hasEnvValue(env.GEMINI_API_KEY)) return null;
+  return {
+    baseUrl: stripTrailingSlash(env.GEMINI_BASE_URL ?? GEMINI_DEFAULT_BASE_URL),
+    apiKey: env.GEMINI_API_KEY.trim(),
+    model: hasEnvValue(env.GEMINI_MODEL) ? env.GEMINI_MODEL.trim() : GEMINI_DEFAULT_MODEL,
+  };
+}
+
+function resolveGrokConfig(env: Record<string, string | undefined>): DissectProviderConfig | null {
+  const apiKey = env.GROK_API_KEY ?? env.XAI_API_KEY;
+  if (!hasEnvValue(apiKey)) return null;
+  const model = env.GROK_MODEL ?? env.XAI_MODEL;
+  return {
+    baseUrl: stripTrailingSlash(env.GROK_BASE_URL ?? env.XAI_BASE_URL ?? GROK_DEFAULT_BASE_URL),
+    apiKey: apiKey.trim(),
+    model: hasEnvValue(model) ? model.trim() : GROK_DEFAULT_MODEL,
+  };
+}
+
+/**
+ * Gemini handles file-level Dissect. Grok handles architecture maps.
+ * DISSECT_LLM_* / OPENAI_API_KEY remain a fallback when a dedicated key is unset.
+ */
+export function resolveDissectAnalysisConfigs(
+  env: Record<string, string | undefined>,
+): DissectAnalysisConfigs {
+  const fallback = resolveDissectProviderConfig(env).config;
+  const code = resolveGeminiConfig(env) ?? fallback;
+  const architecture = resolveGrokConfig(env) ?? fallback;
+  if (code && architecture) {
+    return { code, architecture, hint: null };
+  }
+  if (!code && !architecture) {
+    return {
+      code: null,
+      architecture: null,
+      hint: "Set GEMINI_API_KEY for file-level Dissect and GROK_API_KEY for architecture maps.",
+    };
+  }
+  if (!code) {
+    return { code: null, architecture, hint: "Set GEMINI_API_KEY for file-level Dissect." };
+  }
+  return {
+    code,
+    architecture: null,
+    hint: "Set GROK_API_KEY (or XAI_API_KEY) for architecture maps.",
+  };
 }
 
 /**

@@ -16,7 +16,7 @@ import { answerContextQuestion } from "./analysis/context-chat.js";
 import { DissectKnowledgeService } from "./knowledge/service.js";
 import { OpenAICompatibleProvider } from "./providers/openai-compatible.js";
 import { overlayDissectLlmEnvFromCheckout } from "./providers/llm-env.js";
-import { resolveDissectProviderConfig, type DissectTextProvider } from "./providers/provider.js";
+import { resolveDissectAnalysisConfigs, type DissectTextProvider } from "./providers/provider.js";
 import { captureWorkingTreeSnapshot, assertGitTreeSha } from "./snapshot/git-tree-snapshot.js";
 import { unifiedDiffBetweenSnapshots } from "./snapshot/diff-between-snapshots.js";
 import { agentTurnHasFileChanges, resolveAgentTurnDiffSnapshots } from "./agent-turn.js";
@@ -63,23 +63,38 @@ export class DissectService {
     this.knowledge = new DissectKnowledgeService(paseoHome, logger, this.spacetime);
   }
 
-  private resolveProvider(): {
-    provider: DissectTextProvider | null;
+  private resolveProviders(): {
+    code: DissectTextProvider | null;
+    architecture: DissectTextProvider | null;
     hint: string | null;
   } {
-    const { config, hint } = resolveDissectProviderConfig(
+    if (this.analysisProvider) {
+      return { code: this.analysisProvider, architecture: this.analysisProvider, hint: null };
+    }
+    const { code, architecture, hint } = resolveDissectAnalysisConfigs(
       overlayDissectLlmEnvFromCheckout(process.env),
     );
-    return { provider: config ? new OpenAICompatibleProvider(config) : null, hint };
+    return {
+      code: code ? new OpenAICompatibleProvider(code) : null,
+      architecture: architecture ? new OpenAICompatibleProvider(architecture) : null,
+      hint,
+    };
   }
 
-  private requireProvider(): DissectTextProvider {
-    if (this.analysisProvider) return this.analysisProvider;
-    const { provider, hint } = this.resolveProvider();
-    if (!provider) {
-      throw new Error(hint ?? "Dissect needs an analysis model.");
+  private requireCodeProvider(): DissectTextProvider {
+    const { code, hint } = this.resolveProviders();
+    if (!code) {
+      throw new Error(hint ?? "Dissect needs a Gemini API key for file-level analysis.");
     }
-    return provider;
+    return code;
+  }
+
+  private requireArchitectureProvider(): DissectTextProvider {
+    const { architecture, hint } = this.resolveProviders();
+    if (!architecture) {
+      throw new Error(hint ?? "Dissect needs a Grok API key for architecture maps.");
+    }
+    return architecture;
   }
 
   private normalizeCwd(cwd: string): string {
@@ -89,10 +104,10 @@ export class DissectService {
   async getState(cwd: string): Promise<DissectWorkspaceState> {
     const resolved = this.normalizeCwd(cwd);
     const state = await this.store.load(resolved);
-    const { provider, hint } = this.resolveProvider();
+    const { code, architecture, hint } = this.resolveProviders();
     const knowledge = await this.knowledge.getState(this.store.projectId(resolved), resolved);
     return {
-      configured: provider !== null,
+      configured: code !== null && architecture !== null,
       configurationHint: hint,
       run: state.run,
       lastDiff: state.lastDiff,
@@ -165,7 +180,8 @@ export class DissectService {
     }
     this.runsInFlight.add(resolved);
     try {
-      const provider = this.requireProvider();
+      const provider = this.requireCodeProvider();
+      const architectureProvider = this.requireArchitectureProvider();
       const projectId = this.store.projectId(resolved);
       const knowledge = await this.knowledge.getState(projectId, resolved);
       // Initial Dissect reads the files on disk. Git snapshots are only for
@@ -177,6 +193,7 @@ export class DissectService {
         snapshotId,
         projectId,
         provider,
+        architectureProvider,
         knowledge,
         logger: this.logger,
         onProgress,
@@ -247,7 +264,7 @@ export class DissectService {
       }
     }
 
-    const provider = this.requireProvider();
+    const provider = this.requireCodeProvider();
     const result = await analyzeFile({ cwd: resolved, path: filePath, provider, knowledge });
     await this.store.save(resolved, (mutable) => {
       mutable.fileDissections[filePath] = {
@@ -269,7 +286,7 @@ export class DissectService {
     }
     this.runsInFlight.add(resolved);
     try {
-      const provider = this.requireProvider();
+      const provider = this.requireCodeProvider();
       const state = await this.store.load(resolved);
       const snapshots = resolveAgentTurnDiffSnapshots({
         hasCodebaseRun: Boolean(state.run),
@@ -333,7 +350,11 @@ export class DissectService {
     if (!state.run || state.run.runId !== input.runId) {
       throw new Error("No matching Dissect run was found. Run Dissect again.");
     }
-    const provider = this.requireProvider();
+    const codebaseScope =
+      input.scopeKind === "folder" && (input.scopePath === "." || input.scopePath === "");
+    const provider = codebaseScope
+      ? this.requireArchitectureProvider()
+      : this.requireCodeProvider();
     const knowledge = await this.knowledge.getState(this.store.projectId(resolved), resolved);
     return answerContextQuestion({
       cwd: resolved,

@@ -157,11 +157,13 @@ export async function analyzeCodebase(input: {
   snapshotId: string;
   projectId: string;
   provider: DissectTextProvider;
+  architectureProvider?: DissectTextProvider;
   knowledge: DissectKnowledgeState;
   logger: pino.Logger;
   onProgress: (event: CodebaseProgressEvent) => void;
 }): Promise<CodebaseDissection> {
   const { cwd, provider, knowledge, logger, onProgress } = input;
+  const architectureProvider = input.architectureProvider ?? provider;
 
   onProgress({ stage: "inventory", detail: null, completed: null, total: null });
   const inventory = await collectRepositoryInventory(cwd);
@@ -222,7 +224,11 @@ export async function analyzeCodebase(input: {
     fileSummaries: renderSummariesForArchitecture(allSummaries),
     knowledge,
   });
-  const architecture = await callStructured(provider, RawArchitectureSchema, architecturePrompt);
+  const architecture = await callStructured(
+    architectureProvider,
+    RawArchitectureSchema,
+    architecturePrompt,
+  );
 
   const folderSet = new Set(inventory.folders);
   const fileSet = new Set(inventory.files.map((file) => file.path));
