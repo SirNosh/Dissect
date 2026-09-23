@@ -8,14 +8,7 @@
   An on-demand comprehension layer for your codebase and the changes coding agents make to it.
 </p>
 
-<p align="center">
-  <a href="https://github.com/SirNosh/Dissect/stargazers">
-    <img src="https://img.shields.io/github/stars/SirNosh/Dissect?style=flat&logo=github" alt="GitHub stars">
-  </a>
-  <a href="https://github.com/SirNosh/Dissect/releases">
-    <img src="https://img.shields.io/github/v/release/SirNosh/Dissect?style=flat&logo=github" alt="GitHub release">
-  </a>
-</p>
+
 
 Dissect runs a local daemon that manages coding agents (Claude Code, Codex, Copilot, OpenCode, and Pi) and adds a comprehension layer: **Dissect** for the current tree, **Dissect Diff** for the last agent turn.
 
