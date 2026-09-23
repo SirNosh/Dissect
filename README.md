@@ -110,22 +110,6 @@ Repo map:
 
 See [docs/development.md](docs/development.md) and [docs/product.md](docs/product.md).
 
-## Contributors
-
-<p align="center">
-  <a href="https://github.com/SirNosh">
-    <img src="https://github.com/SirNosh.png?size=96" width="72" height="72" alt="SirNosh">
-  </a>
-  &nbsp;&nbsp;&nbsp;
-  <a href="https://cursor.com">
-    <img src="https://github.com/cursor.png?size=96" width="72" height="72" alt="Cursor">
-  </a>
-</p>
-<p align="center">
-  <a href="https://github.com/SirNosh"><strong>SirNosh</strong></a>
-  &nbsp;·&nbsp;
-  <a href="https://cursor.com"><strong>Cursor</strong></a>
-</p>
 
 ## License
 
