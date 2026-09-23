@@ -31,7 +31,9 @@ const PersistedProjectStateSchema = z.object({
     z.string(),
     z.object({
       contentHash: z.string(),
-      knowledgeRevision: z.number().int().nonnegative(),
+      // COMPAT(dissectKnowledgeRevision): caches written before retrieval slices. Remove after 2026-12-23.
+      knowledgeRevision: z.number().int().nonnegative().optional(),
+      retrievalKey: z.string().optional(),
       result: FileDissectionSchema,
     }),
   ),

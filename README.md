@@ -8,14 +8,14 @@
   An on-demand comprehension layer for your codebase and the changes coding agents make to it.
 </p>
 
-
-
 Dissect runs a local daemon that manages coding agents (Claude Code, Codex, Copilot, OpenCode, and Pi) and adds a comprehension layer: **Dissect** for the current tree, **Dissect Diff** for the last agent turn.
 
 - **Local-first:** your code stays on your machine.
 - **Agents:** run, monitor, and steer Claude Code, Codex, Copilot, OpenCode, and Pi from one app.
 - **Comprehension:** architecture maps, file explanations, and block-level change analysis.
 - **Clients:** desktop, web, and CLI.
+
+Later dissections use what you have already been shown. **I know this** marks a concept or file comfortable, and **Explain more** asks for a deeper pass next time. The next explanation retrieves only the concepts and paths that match the file, diff, or question, plus the last explanation stored for those, and leaves the rest out. Explanation preferences stay stored and are not written into the prompt.
 
 The project site is at <https://sirnosh.github.io/Dissect/>.
 
@@ -115,7 +115,6 @@ Repo map:
 - `packages/relay` — encrypted relay transport
 
 See [docs/development.md](docs/development.md) and [docs/product.md](docs/product.md).
-
 
 ## License
 

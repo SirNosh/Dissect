@@ -2,8 +2,8 @@ import type {
   ArchitectureGraph,
   CodebaseDissection,
   DissectContextAnswer,
-  DissectKnowledgeState,
 } from "@getpaseo/protocol/dissect";
+import type { KnowledgeRetriever } from "../knowledge/retrieve.js";
 import type { DissectTextProvider } from "../providers/provider.js";
 import { callStructured } from "../providers/provider.js";
 import { buildContextQuestionPrompt } from "../providers/prompts.js";
@@ -28,7 +28,7 @@ export async function answerContextQuestion(input: {
   scopePath: string;
   question: string;
   provider: DissectTextProvider;
-  knowledge: DissectKnowledgeState;
+  knowledge: KnowledgeRetriever;
 }): Promise<DissectContextAnswer> {
   const { run, scopePath } = input;
   const codebaseScope = input.scopeKind === "folder" && (scopePath === "." || scopePath === "");
@@ -59,12 +59,22 @@ export async function answerContextQuestion(input: {
     budget -= Buffer.byteLength(block, "utf8");
   }
 
+  const context = sections.join("\n\n");
   const prompt = buildContextQuestionPrompt({
     scopeKind: input.scopeKind,
     scopePath: codebaseScope ? "codebase architecture" : scopePath,
-    context: sections.join("\n\n"),
+    context,
     question: input.question,
-    knowledge: input.knowledge,
+    knowledge: input.knowledge.retrieve({
+      conceptKeys: conceptKeysForScope({
+        run,
+        scopeKind: input.scopeKind,
+        scopePath,
+        codebaseScope,
+      }),
+      componentPaths: [scopePath, ...scopedFilePaths.slice(0, 12)],
+      text: `${input.question}\n${context}`,
+    }),
   });
   const raw = await callStructured(input.provider, RawContextAnswerSchema, prompt);
 
@@ -154,6 +164,20 @@ function collectContextSections(input: {
     );
   }
   return sections;
+}
+
+function conceptKeysForScope(input: {
+  run: CodebaseDissection;
+  scopeKind: "folder" | "file";
+  scopePath: string;
+  codebaseScope: boolean;
+}): string[] {
+  const { run, scopePath } = input;
+  if (input.codebaseScope) return run.concepts.map((concept) => concept.key);
+  if (input.scopeKind === "file") {
+    return run.files.find((file) => file.path === scopePath)?.conceptKeys ?? [];
+  }
+  return run.folders.find((folder) => folder.path === scopePath)?.conceptKeys ?? [];
 }
 
 function collectScopedFilePaths(input: {

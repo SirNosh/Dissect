@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { DiffDissection, DissectKnowledgeState } from "@getpaseo/protocol/dissect";
+import type { DiffBlockDissection, DiffDissection } from "@getpaseo/protocol/dissect";
+import type { KnowledgeRetriever } from "../knowledge/retrieve.js";
 import type { DissectTextProvider } from "../providers/provider.js";
 import { callStructured } from "../providers/provider.js";
 import { buildDiffDissectionPrompt } from "../providers/prompts.js";
@@ -9,6 +10,12 @@ import {
   type SnapshotChangedFile,
 } from "../snapshot/diff-between-snapshots.js";
 import { isAnalyzableSourcePath } from "../repository/filters.js";
+import {
+  attachExplanationsToRegions,
+  boundRenderedRegions,
+  extractDiffChangeRegions,
+  renderDiffChangeRegions,
+} from "./diff-regions.js";
 import { RawDiffDissectionSchema } from "./schemas.js";
 
 const MAX_DIFF_PROMPT_BYTES = 160_000;
@@ -23,10 +30,17 @@ function renderStatuses(changed: SnapshotChangedFile[]): string {
     .join("\n");
 }
 
-function boundDiff(diff: string): string {
-  if (Buffer.byteLength(diff, "utf8") <= MAX_DIFF_PROMPT_BYTES) return diff;
-  const slice = Buffer.from(diff, "utf8").subarray(0, MAX_DIFF_PROMPT_BYTES).toString("utf8");
-  return `${slice}\n[... diff truncated for analysis; explain only what is shown ...]`;
+function blocksByPath(blocks: readonly DiffBlockDissection[]): Map<string, DiffBlockDissection[]> {
+  const grouped = new Map<string, DiffBlockDissection[]>();
+  for (const block of blocks) {
+    const existing = grouped.get(block.path);
+    if (existing) {
+      existing.push(block);
+    } else {
+      grouped.set(block.path, [block]);
+    }
+  }
+  return grouped;
 }
 
 /**
@@ -38,7 +52,8 @@ export async function analyzeDiff(input: {
   fromSnapshotId: string;
   toSnapshotId: string;
   provider: DissectTextProvider;
-  knowledge: DissectKnowledgeState;
+  priorConceptKeys: ReadonlyMap<string, readonly string[]>;
+  knowledge: KnowledgeRetriever;
 }): Promise<DiffDissection> {
   const changed = await listChangedFilesBetweenSnapshots(
     input.cwd,
@@ -64,37 +79,36 @@ export async function analyzeDiff(input: {
         )
       : "";
 
+  const regions = extractDiffChangeRegions(unified);
+  const changeRegions = boundRenderedRegions(
+    renderDiffChangeRegions(regions),
+    MAX_DIFF_PROMPT_BYTES,
+  );
+  const conceptKeys = [
+    ...new Set(changed.flatMap((file) => input.priorConceptKeys.get(file.path) ?? [])),
+  ];
   const prompt = buildDiffDissectionPrompt({
     fileStatuses: renderStatuses(changed),
-    unifiedDiff: boundDiff(unified),
-    knowledge: input.knowledge,
+    changeRegions,
+    knowledge: input.knowledge.retrieve({
+      conceptKeys,
+      componentPaths: changed.map((file) => file.path),
+      text: changeRegions,
+    }),
   });
   const raw = await callStructured(input.provider, RawDiffDissectionSchema, prompt);
 
+  const explanations = raw.changedFiles.flatMap((file) => file.blocks);
+  const attached = attachExplanationsToRegions({ regions, explanations });
+  const attachedByPath = blocksByPath(attached);
+  const rawByPath = new Map(raw.changedFiles.map((file) => [file.path, file]));
   const changedByPath = new Map(changed.map((file) => [file.path, file]));
-  const changedFiles = raw.changedFiles
-    .filter((file) => changedByPath.has(file.path))
-    .map((file) => {
-      const status = changedByPath.get(file.path)!.status;
-      const blocks = file.blocks.filter((block) => {
-        if (block.path !== file.path) return false;
-        const oldRangeValid =
-          block.oldStartLine === undefined ||
-          block.oldEndLine === undefined ||
-          block.oldStartLine <= block.oldEndLine;
-        const newRangeValid =
-          block.newStartLine === undefined ||
-          block.newEndLine === undefined ||
-          block.newStartLine <= block.newEndLine;
-        return oldRangeValid && newRangeValid;
-      });
-      return {
-        path: file.path,
-        status,
-        summary: file.summary,
-        blocks,
-      };
-    });
+  const changedFiles = changed.map((file) => ({
+    path: file.path,
+    status: file.status,
+    summary: rawByPath.get(file.path)?.summary ?? "",
+    blocks: attachedByPath.get(file.path) ?? [],
+  }));
 
   const knownChangedPaths = new Set(changedFiles.map((file) => file.path));
   const changedFolders = raw.changedFolders

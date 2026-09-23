@@ -107,6 +107,26 @@ export function enqueueProjectIdentity(
   });
 }
 
+export function enqueueConceptFamiliarity(
+  client: DissectSpacetimeClient | null,
+  input: {
+    userId: string;
+    conceptKey: string;
+    familiarity: DissectFamiliarity;
+  },
+): void {
+  if (!client?.enabled) return;
+  client.enqueue({
+    reducer: DISSECT_SPACETIME_REDUCERS.setConceptKnowledge,
+    args: {
+      user_id: input.userId,
+      concept_key: input.conceptKey,
+      familiarity: input.familiarity,
+      updated_at: new Date().toISOString(),
+    },
+  });
+}
+
 export function enqueueKnowledgeSignal(
   client: DissectSpacetimeClient | null,
   input: {

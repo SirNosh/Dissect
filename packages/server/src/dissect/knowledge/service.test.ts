@@ -102,4 +102,55 @@ describe("DissectKnowledgeService SpacetimeDB", () => {
     });
     expect(state.concepts.middleware).toBe("comfortable");
   });
+
+  it("records a shown explanation without downgrading an explicit signal", async () => {
+    const home = mkdtempSync(join(tmpdir(), "dissect-knowledge-observe-"));
+    directories.push(home);
+    const spacetime = new MemorySpacetimeClient();
+    const service = new DissectKnowledgeService(home, logger, spacetime);
+    await service.signal({
+      projectId: "proj-a",
+      cwd: "/repo",
+      kind: "concept",
+      key: "jwt",
+      action: "know",
+    });
+    const before = await service.getState("proj-a", "/repo");
+    await service.observe({
+      projectId: "proj-a",
+      cwd: "/repo",
+      concepts: [
+        { key: "jwt", explanation: "Signed tokens that expire." },
+        { key: "middleware", explanation: "Wraps a request." },
+      ],
+      components: [{ path: "src/auth.ts", summary: "Checks bearer tokens." }],
+    });
+    const state = await service.getState("proj-a", "/repo");
+    expect(state.concepts.jwt).toBe("comfortable");
+    expect(state.concepts.middleware).toBe("introduced");
+    expect(state.components["src/auth.ts"]).toBeUndefined();
+    expect(state.revision).toBe(before.revision + 1);
+    expect(JSON.stringify(state)).not.toContain("Signed tokens");
+    expect(spacetime.tables.feedback_event.size).toBe(1);
+
+    const retrieved = (await service.retriever("proj-a", "/repo")).retrieve({
+      conceptKeys: ["jwt", "middleware", "css"],
+      componentPaths: ["src/auth.ts", "src/theme.css"],
+    });
+    expect(retrieved.hits.map((hit) => [hit.kind, hit.key, hit.familiarity, hit.passage])).toEqual([
+      ["concept", "jwt", "comfortable", "Signed tokens that expire."],
+      ["concept", "middleware", "introduced", "Wraps a request."],
+      ["component", "src/auth.ts", "introduced", "Checks bearer tokens."],
+    ]);
+
+    const restored = new DissectKnowledgeService(home, logger, spacetime);
+    const again = (await restored.retriever("proj-a", "/repo")).retrieve({
+      conceptKeys: ["jwt"],
+      componentPaths: ["src/auth.ts"],
+    });
+    expect(again.hits.map((hit) => [hit.key, hit.passage])).toEqual([
+      ["jwt", "Signed tokens that expire."],
+      ["src/auth.ts", "Checks bearer tokens."],
+    ]);
+  });
 });

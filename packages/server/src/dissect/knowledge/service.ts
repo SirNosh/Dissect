@@ -14,6 +14,7 @@ import {
 } from "../spacetime/client.js";
 import { loadOrCreateDissectUserIdentity } from "./identity.js";
 import {
+  enqueueConceptFamiliarity,
   enqueueKnowledgeSignal,
   enqueueLocalKnowledgeBackfill,
   enqueueProjectIdentity,
@@ -21,6 +22,8 @@ import {
   familiarityForAction,
   loadKnowledgeFromSpacetime,
 } from "./spacetime-sync.js";
+import { normalizePassage, retrieveKnowledge, STORED_PASSAGE_CHARS } from "./retrieve.js";
+import type { KnowledgeQuery, KnowledgeRetriever, RetrievedKnowledge } from "./retrieve.js";
 
 const PersistedKnowledgeSchema = z.object({
   userId: z.string(),
@@ -29,6 +32,9 @@ const PersistedKnowledgeSchema = z.object({
   concepts: z.record(z.string(), DissectFamiliaritySchema),
   projects: z.record(z.string(), z.record(z.string(), DissectFamiliaritySchema)),
   preferences: z.record(z.string(), z.string()).optional(),
+  // Last explanation shown. Local only; familiarity is what syncs.
+  conceptPassages: z.record(z.string(), z.string()).optional(),
+  projectPassages: z.record(z.string(), z.record(z.string(), z.string())).optional(),
   pendingSpacetimeWrites: z
     .array(z.object({ reducer: z.string(), args: z.record(z.string(), z.unknown()) }))
     .optional(),
@@ -44,6 +50,8 @@ function emptyKnowledge(): PersistedKnowledge {
     concepts: {},
     projects: {},
     preferences: {},
+    conceptPassages: {},
+    projectPassages: {},
     pendingSpacetimeWrites: [],
   };
 }
@@ -52,6 +60,7 @@ function emptyKnowledge(): PersistedKnowledge {
  * Explicit developer knowledge: global concept familiarity plus per-project
  * component familiarity. SpacetimeDB is the durable store. Local JSON is the
  * fallback and the outage queue so analysis never depends on the database.
+ * Passages are the last explanation shown and stay in the local file.
  */
 export class DissectKnowledgeService {
   private readonly filePath: string;
@@ -83,6 +92,8 @@ export class DissectKnowledgeService {
     const identity = await loadOrCreateDissectUserIdentity(this.paseoHome, this.state.userId);
     this.state.userId = identity.userId;
     this.state.createdAt = this.state.createdAt ?? identity.createdAt;
+    this.state.conceptPassages = this.state.conceptPassages ?? {};
+    this.state.projectPassages = this.state.projectPassages ?? {};
     const pending = this.state.pendingSpacetimeWrites ?? [];
     if (!this.spacetime) {
       this.spacetime = new HttpSpacetimeClient(
@@ -182,6 +193,80 @@ export class DissectKnowledgeService {
       concepts: { ...state.concepts },
       components: { ...state.projects[projectId] },
     };
+  }
+
+  async retriever(projectId: string, cwd = ""): Promise<KnowledgeRetriever> {
+    const state = await this.load();
+    await this.hydrateProject(projectId, cwd);
+    const concepts = { ...state.concepts };
+    const components = { ...state.projects[projectId] };
+    const conceptPassages = { ...state.conceptPassages };
+    const componentPassages = { ...state.projectPassages?.[projectId] };
+    return {
+      retrieve(query: KnowledgeQuery): RetrievedKnowledge {
+        return retrieveKnowledge(
+          { concepts, components, conceptPassages, componentPassages },
+          query,
+        );
+      },
+    };
+  }
+
+  /**
+   * Record explanations that were just shown. Concepts with no stronger
+   * signal become `introduced`. Comfortable and learning stay user-driven.
+   * Component familiarity is left unchanged.
+   */
+  async observe(input: {
+    projectId: string;
+    cwd?: string;
+    concepts: ReadonlyArray<{ key: string; explanation: string }>;
+    components: ReadonlyArray<{ path: string; summary: string }>;
+  }): Promise<void> {
+    const state = await this.load();
+    await this.hydrateProject(input.projectId, input.cwd ?? "");
+    state.conceptPassages = state.conceptPassages ?? {};
+    state.projectPassages = state.projectPassages ?? {};
+    const passages = state.projectPassages[input.projectId] ?? {};
+    let dirty = false;
+    let familiarityChanged = false;
+
+    for (const concept of input.concepts) {
+      const key = concept.key.trim();
+      const explanation = normalizePassage(concept.explanation, STORED_PASSAGE_CHARS);
+      if (key.length === 0 || !explanation) continue;
+      const current = state.concepts[key];
+      if (current === undefined || current === "unseen") {
+        state.concepts[key] = "introduced";
+        familiarityChanged = true;
+        dirty = true;
+        enqueueConceptFamiliarity(this.spacetime, {
+          userId: state.userId,
+          conceptKey: key,
+          familiarity: "introduced",
+        });
+      }
+      if (state.conceptPassages[key] !== explanation) {
+        state.conceptPassages[key] = explanation;
+        dirty = true;
+      }
+    }
+
+    for (const component of input.components) {
+      const componentPath = component.path.trim().replaceAll("\\", "/");
+      const summary = normalizePassage(component.summary, STORED_PASSAGE_CHARS);
+      if (componentPath.length === 0 || !summary) continue;
+      if (passages[componentPath] === summary) continue;
+      passages[componentPath] = summary;
+      dirty = true;
+    }
+
+    if (!dirty) return;
+    if (input.projectId.length > 0) {
+      state.projectPassages[input.projectId] = passages;
+    }
+    if (familiarityChanged) state.revision += 1;
+    await this.persist();
   }
 
   async signal(input: {

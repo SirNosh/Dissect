@@ -19,6 +19,9 @@ import { overlayDissectLlmEnvFromCheckout } from "./providers/llm-env.js";
 import { resolveDissectAnalysisConfigs, type DissectTextProvider } from "./providers/provider.js";
 import { captureWorkingTreeSnapshot, assertGitTreeSha } from "./snapshot/git-tree-snapshot.js";
 import { unifiedDiffBetweenSnapshots } from "./snapshot/diff-between-snapshots.js";
+import { readRepositoryFile } from "./repository/inventory.js";
+import { MAX_ANALYZABLE_FILE_BYTES } from "./repository/filters.js";
+import { sha256Hex } from "./repository/hash.js";
 import { agentTurnHasFileChanges, resolveAgentTurnDiffSnapshots } from "./agent-turn.js";
 import { DissectProjectStore } from "./store.js";
 import {
@@ -183,7 +186,7 @@ export class DissectService {
       const provider = this.requireCodeProvider();
       const architectureProvider = this.requireArchitectureProvider();
       const projectId = this.store.projectId(resolved);
-      const knowledge = await this.knowledge.getState(projectId, resolved);
+      const knowledge = await this.knowledge.retriever(projectId, resolved);
       // Initial Dissect reads the files on disk. Git snapshots are only for
       // agent-turn Dissect Diff.
       const snapshotId = `local:${projectId}`;
@@ -211,6 +214,18 @@ export class DissectService {
         projectId,
         snapshotId,
         run,
+      });
+      await this.knowledge.observe({
+        projectId,
+        cwd: resolved,
+        concepts: run.concepts.map((concept) => ({
+          key: concept.key,
+          explanation: concept.explanation,
+        })),
+        components: [
+          ...run.files.map((file) => ({ path: file.path, summary: file.summary })),
+          ...run.folders.map((folder) => ({ path: folder.path, summary: folder.summary })),
+        ],
       });
       await this.spacetime.flush();
       onProgress({ stage: "done", detail: null, completed: null, total: null });
@@ -251,25 +266,48 @@ export class DissectService {
       throw new Error("Run Dissect on this workspace before dissecting individual files.");
     }
     const projectId = this.store.projectId(resolved);
-    const knowledge = await this.knowledge.getState(projectId, resolved);
+    const retriever = await this.knowledge.retriever(projectId, resolved);
+    const conceptKeys = state.run.files.find((file) => file.path === filePath)?.conceptKeys ?? [];
+    const read = await readRepositoryFile(resolved, filePath, MAX_ANALYZABLE_FILE_BYTES);
+    const retrieved =
+      read && !read.truncated
+        ? retriever.retrieve({
+            conceptKeys,
+            componentPaths: [filePath],
+            text: read.content,
+          })
+        : retriever.retrieve({ conceptKeys, componentPaths: [filePath] });
 
     const cached = state.fileDissections[filePath];
-    if (cached && cached.knowledgeRevision === knowledge.revision) {
-      // Content-addressed: reuse only when the current file still matches.
-      const { readRepositoryFile } = await import("./repository/inventory.js");
-      const { sha256Hex } = await import("./repository/hash.js");
-      const read = await readRepositoryFile(resolved, filePath, 1024 * 1024);
-      if (read && sha256Hex(read.content) === cached.contentHash) {
-        return cached.result;
-      }
+    if (
+      read &&
+      !read.truncated &&
+      cached?.retrievalKey === retrieved.cacheKey &&
+      cached.contentHash === sha256Hex(read.content)
+    ) {
+      return cached.result;
     }
 
     const provider = this.requireCodeProvider();
-    const result = await analyzeFile({ cwd: resolved, path: filePath, provider, knowledge });
+    const result = await analyzeFile({
+      cwd: resolved,
+      path: filePath,
+      provider,
+      knowledge: retrieved,
+    });
+    await this.knowledge.observe({
+      projectId,
+      cwd: resolved,
+      concepts: result.concepts.map((concept) => ({
+        key: concept.key,
+        explanation: concept.explanation,
+      })),
+      components: [{ path: filePath, summary: result.summary }],
+    });
     await this.store.save(resolved, (mutable) => {
       mutable.fileDissections[filePath] = {
         contentHash: result.contentHash,
-        knowledgeRevision: knowledge.revision,
+        retrievalKey: retrieved.cacheKey,
         result,
       };
     });
@@ -294,18 +332,34 @@ export class DissectService {
       });
       onProgress({ stage: "snapshot", detail: null, completed: null, total: null });
       const projectId = this.store.projectId(resolved);
-      const knowledge = await this.knowledge.getState(projectId, resolved);
+      const knowledge = await this.knowledge.retriever(projectId, resolved);
+      const priorConceptKeys = new Map(
+        (state.run?.files ?? []).map((file) => [file.path, file.conceptKeys] as const),
+      );
       onProgress({ stage: "diff", detail: null, completed: null, total: null });
       const diff = await analyzeDiff({
         cwd: resolved,
         fromSnapshotId: snapshots.fromSnapshotId,
         toSnapshotId: snapshots.toSnapshotId,
         provider,
+        priorConceptKeys,
         knowledge,
       });
       await this.store.save(resolved, (mutable) => {
         mutable.lastDiff = diff;
         mutable.agentTurn = null;
+      });
+      await this.knowledge.observe({
+        projectId,
+        cwd: resolved,
+        concepts: diff.concepts.map((concept) => ({
+          key: concept.key,
+          explanation: concept.explanation,
+        })),
+        components: [
+          ...diff.changedFiles.map((file) => ({ path: file.path, summary: file.summary })),
+          ...diff.changedFolders.map((folder) => ({ path: folder.path, summary: folder.summary })),
+        ],
       });
       onProgress({ stage: "done", detail: null, completed: null, total: null });
       return { diff, baselineSnapshotId: snapshots.toSnapshotId };
@@ -355,8 +409,9 @@ export class DissectService {
     const provider = codebaseScope
       ? this.requireArchitectureProvider()
       : this.requireCodeProvider();
-    const knowledge = await this.knowledge.getState(this.store.projectId(resolved), resolved);
-    return answerContextQuestion({
+    const projectId = this.store.projectId(resolved);
+    const knowledge = await this.knowledge.retriever(projectId, resolved);
+    const answer = await answerContextQuestion({
       cwd: resolved,
       run: state.run,
       scopeKind: input.scopeKind,
@@ -365,6 +420,16 @@ export class DissectService {
       provider,
       knowledge,
     });
+    await this.knowledge.observe({
+      projectId,
+      cwd: resolved,
+      concepts: answer.concepts.map((concept) => ({
+        key: concept.key,
+        explanation: concept.explanation,
+      })),
+      components: [],
+    });
+    return answer;
   }
 
   async signalKnowledge(input: {

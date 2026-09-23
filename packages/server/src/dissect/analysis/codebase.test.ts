@@ -2,17 +2,15 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import type { DissectKnowledgeState } from "@getpaseo/protocol/dissect";
+import type { KnowledgeRetriever } from "../knowledge/retrieve.js";
 import { createTestLogger } from "../../test-utils/test-logger.js";
 import type { DissectTextProvider } from "../providers/provider.js";
 import { analyzeCodebase } from "./codebase.js";
 
 const logger = createTestLogger();
 
-const emptyKnowledge: DissectKnowledgeState = {
-  revision: 0,
-  concepts: {},
-  components: {},
+const emptyKnowledge: KnowledgeRetriever = {
+  retrieve: () => ({ hits: [], cacheKey: "none" }),
 };
 
 function recordingProvider(label: string, calls: string[]): DissectTextProvider {

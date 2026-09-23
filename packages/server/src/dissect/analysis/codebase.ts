@@ -4,8 +4,8 @@ import type {
   CodebaseDissection,
   DissectFileSummary,
   DissectFolderSummary,
-  DissectKnowledgeState,
 } from "@getpaseo/protocol/dissect";
+import type { KnowledgeRetriever } from "../knowledge/retrieve.js";
 import type { DissectTextProvider } from "../providers/provider.js";
 import { callStructured } from "../providers/provider.js";
 import { buildArchitecturePrompt, buildFileSummariesPrompt } from "../providers/prompts.js";
@@ -158,7 +158,7 @@ export async function analyzeCodebase(input: {
   projectId: string;
   provider: DissectTextProvider;
   architectureProvider?: DissectTextProvider;
-  knowledge: DissectKnowledgeState;
+  knowledge: KnowledgeRetriever;
   logger: pino.Logger;
   onProgress: (event: CodebaseProgressEvent) => void;
 }): Promise<CodebaseDissection> {
@@ -187,7 +187,13 @@ export async function analyzeCodebase(input: {
       while (nextBatch < batches.length) {
         const batch = batches[nextBatch++];
         try {
-          const prompt = buildFileSummariesPrompt({ files: batch.files, knowledge });
+          const prompt = buildFileSummariesPrompt({
+            files: batch.files,
+            knowledge: knowledge.retrieve({
+              componentPaths: batch.files.map((file) => file.path),
+              text: batch.files.map((file) => file.content).join("\n"),
+            }),
+          });
           const raw = await callStructured(provider, RawFileSummariesSchema, prompt);
           for (const summary of raw.files) {
             if (!validPaths.has(summary.path)) continue;
@@ -219,10 +225,14 @@ export async function analyzeCodebase(input: {
   }
 
   onProgress({ stage: "architecture", detail: null, completed: null, total: null });
+  const conceptKeys = [...new Set(allSummaries.flatMap((summary) => summary.conceptKeys))];
   const architecturePrompt = buildArchitecturePrompt({
     tree: renderTree(inventory),
     fileSummaries: renderSummariesForArchitecture(allSummaries),
-    knowledge,
+    knowledge: knowledge.retrieve({
+      conceptKeys,
+      componentPaths: [".", ...inventory.folders],
+    }),
   });
   const architecture = await callStructured(
     architectureProvider,

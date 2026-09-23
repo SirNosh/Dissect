@@ -82,7 +82,7 @@ The module persists:
 - project identity mappings (`project_identity`);
 - the first successful codebase architecture, write-once per project (`codebase_architecture`).
 
-`I know this` and `Explain more` write through reducers, hydrate later pane loads, and are injected into subsequent analysis prompts. An unreachable server never blocks analysis; writes queue locally and retry.
+`I know this` and `Explain more` write through reducers and hydrate later pane loads. Later analysis prompts retrieve the matching concept and component rows, plus the last explanation stored in local `knowledge.json`, and omit everything else. Explanation preferences stay stored and are not a prompt input. An unreachable server never blocks analysis; writes queue locally and retry.
 
 ```bash
 spacetime start

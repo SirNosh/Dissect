@@ -1,4 +1,5 @@
-import type { DissectKnowledgeState, FileDissection } from "@getpaseo/protocol/dissect";
+import type { FileDissection } from "@getpaseo/protocol/dissect";
+import type { RetrievedKnowledge } from "../knowledge/retrieve.js";
 import type { DissectTextProvider } from "../providers/provider.js";
 import { callStructured } from "../providers/provider.js";
 import { buildFileDissectionPrompt } from "../providers/prompts.js";
@@ -22,7 +23,7 @@ export async function analyzeFile(input: {
   cwd: string;
   path: string;
   provider: DissectTextProvider;
-  knowledge: DissectKnowledgeState;
+  knowledge: RetrievedKnowledge;
 }): Promise<FileDissection> {
   const read = await readRepositoryFile(input.cwd, input.path, MAX_ANALYZABLE_FILE_BYTES);
   if (!read) {
