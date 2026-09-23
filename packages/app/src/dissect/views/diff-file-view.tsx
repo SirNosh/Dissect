@@ -5,12 +5,14 @@ import { useTranslation } from "react-i18next";
 import type { DiffBlockDissection, DiffDissection } from "@getpaseo/protocol/dissect";
 import type { ParsedDiffFile } from "@getpaseo/protocol/messages";
 import { DiffDocument } from "@/git/diff-document";
+import { alignDiffBlocksToParsedFile } from "../diff/align-blocks";
 import { useDissectDiffFile } from "../hooks/use-dissect-diff-file";
 import type { DissectWorkspaceHandle } from "../hooks/use-dissect-workspace";
 
 /**
- * One file from a Dissect Diff: the snapshot-to-snapshot delta with
- * change-block tints. Click a tinted block for the block-level explanation.
+ * One file from a Dissect Diff: the snapshot-to-snapshot delta with tints on
+ * the exact added and removed lines. Click a tinted change for that region's
+ * explanation.
  */
 export function DissectDiffFileView({
   diff,
@@ -37,11 +39,11 @@ export function DissectDiffFileView({
   const files = useMemo(() => (loaded.file ? [loaded.file] : []), [loaded.file]);
   const blocksByPath = useMemo(() => {
     const blocks = new Map<string, DiffBlockDissection[]>();
-    if (changedFile && changedFile.blocks.length > 0) {
-      blocks.set(path, changedFile.blocks);
-    }
+    if (!changedFile || changedFile.blocks.length === 0 || !loaded.file) return blocks;
+    const aligned = alignDiffBlocksToParsedFile(changedFile.blocks, loaded.file);
+    if (aligned.length > 0) blocks.set(path, aligned);
     return blocks;
-  }, [changedFile, path]);
+  }, [changedFile, loaded.file, path]);
   const displayPreferences = useMemo(
     () => ({
       layout: "unified" as const,

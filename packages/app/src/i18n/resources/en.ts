@@ -1635,7 +1635,7 @@ export const en = {
       architectureImpact: "Architecture impact",
       showBlocks: "Explain {{count}} changed blocks",
       hideBlocks: "Hide changed blocks",
-      blockHint: "Click a highlighted change for a block-level explanation.",
+      blockHint: "Click a highlighted added or removed line to see what that change did.",
       noTextDiff: "No text diff is available for this file.",
       loadError: "Couldn't load this file diff.",
       lines: "lines",

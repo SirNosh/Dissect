@@ -364,7 +364,11 @@ export function DiffSurface(props: DiffSurfaceProps) {
         const blocks = dissectBlocksRef.current?.get(path);
         if (!blocks) return null;
         return (
-          matchDissectDiffBlock(blocks, cell.sourceIdentity.side, cell.lineNumber)?.index ?? null
+          matchDissectDiffBlock(blocks, {
+            side: cell.sourceIdentity.side,
+            lineNumber: cell.lineNumber,
+            type: cell.type,
+          })?.index ?? null
         );
       },
     });
@@ -593,7 +597,13 @@ export function DiffSurface(props: DiffSurfaceProps) {
     const cell = row.cells[hit.position.cellIndex] ?? row.cells[0];
     if (!cell) return null;
     const blocks = dissectBlocksRef.current?.get(row.path) ?? [];
-    return matchDissectDiffBlock(blocks, cell.sourceIdentity.side, cell.lineNumber)?.block ?? null;
+    return (
+      matchDissectDiffBlock(blocks, {
+        side: cell.sourceIdentity.side,
+        lineNumber: cell.lineNumber,
+        type: cell.type,
+      })?.block ?? null
+    );
   }, []);
   const setSelection = useStableEvent((selection: DiffSelection | null) => {
     selectionRef.current = selection;
@@ -936,16 +946,6 @@ export function DiffSurface(props: DiffSurfaceProps) {
       <DomOverlayScrollbar scrollContainerRef={scrollRef} onUserScrollUp={noop} />
       {hoveredAffordance?.hit.target && reviewActions ? (
         <InlineReviewAddButton onPress={addHoveredComment} style={affordanceStyle} />
-      ) : null}
-      {hoveredDissect && !pinnedDissect ? (
-        <DissectDiffTooltip
-          block={hoveredDissect.block}
-          left={hoveredDissect.left}
-          top={hoveredDissect.top}
-          background={props.palette.headerSurface}
-          color={props.palette.foreground}
-          border={props.palette.border}
-        />
       ) : null}
       {pinnedDissect
         ? createPortal(
@@ -1313,7 +1313,11 @@ function resolveDissectHover(input: {
   const row: DiffLineRow = input.row;
   const cell = row.cells[input.sideIndex];
   if (!cell) return null;
-  const match = matchDissectDiffBlock(input.blocks, cell.sourceIdentity.side, cell.lineNumber);
+  const match = matchDissectDiffBlock(input.blocks, {
+    side: cell.sourceIdentity.side,
+    lineNumber: cell.lineNumber,
+    type: cell.type,
+  });
   if (!match) return null;
   return {
     block: match.block,
@@ -1322,55 +1326,7 @@ function resolveDissectHover(input: {
   };
 }
 
-const DISSECT_TOOLTIP_BASE: React.CSSProperties = {
-  position: "absolute",
-  zIndex: 20,
-  maxWidth: 360,
-  padding: "10px 12px",
-  borderRadius: 8,
-  fontSize: 12,
-  lineHeight: 1.45,
-  pointerEvents: "none",
-  boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
-};
-const DISSECT_TOOLTIP_TITLE: React.CSSProperties = { fontWeight: 700, marginBottom: 4 };
-const DISSECT_TOOLTIP_WHY: React.CSSProperties = { marginTop: 6, opacity: 0.85 };
-
-function DissectDiffTooltip({
-  block,
-  left,
-  top,
-  background,
-  color,
-  border,
-}: {
-  block: DiffBlockDissection;
-  left: number;
-  top: number;
-  background: string;
-  color: string;
-  border: string;
-}) {
-  const style = useMemo(
-    () => ({
-      ...DISSECT_TOOLTIP_BASE,
-      left,
-      top,
-      background,
-      color,
-      border: `1px solid ${border}`,
-    }),
-    [background, border, color, left, top],
-  );
-  return (
-    <div data-testid="dissect-diff-tooltip" style={style}>
-      <div style={DISSECT_TOOLTIP_TITLE}>{block.title}</div>
-      <div>{block.summary}</div>
-      {block.whyItChanged ? <div style={DISSECT_TOOLTIP_WHY}>{block.whyItChanged}</div> : null}
-    </div>
-  );
-}
-
+const DISSECT_POPUP_TITLE: React.CSSProperties = { fontWeight: 700, marginBottom: 4 };
 const POPUP_MAX_WIDTH = 360;
 const PRE_WRAP: React.CSSProperties = {
   whiteSpace: "pre-wrap",
@@ -1423,6 +1379,7 @@ function DissectDiffBlockPopup({
 }) {
   const { t } = useTranslation();
   const popupRef = useRef<HTMLDivElement>(null);
+  const changeText = block.whyItChanged.trim() || block.summary;
 
   useLayoutEffect(() => {
     const popup = popupRef.current;
@@ -1487,12 +1444,14 @@ function DissectDiffBlockPopup({
       data-testid="dissect-diff-block-popup"
       style={style}
     >
-      <div style={DISSECT_TOOLTIP_TITLE}>{block.title}</div>
-      <div>{block.summary}</div>
-      <div style={DISSECT_POPUP_LABEL}>{t("dissect.diff.whyItChanged")}</div>
-      <div>{block.whyItChanged}</div>
-      <div style={DISSECT_POPUP_LABEL}>{t("dissect.diff.effect")}</div>
-      <div>{block.effect}</div>
+      <div style={DISSECT_POPUP_TITLE}>{block.title}</div>
+      <div>{changeText}</div>
+      {block.effect ? (
+        <>
+          <div style={DISSECT_POPUP_LABEL}>{t("dissect.diff.effect")}</div>
+          <div>{block.effect}</div>
+        </>
+      ) : null}
     </div>
   );
 }

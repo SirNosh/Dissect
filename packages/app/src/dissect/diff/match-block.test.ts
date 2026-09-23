@@ -6,7 +6,7 @@ const block: DiffBlockDissection = {
   id: "b1",
   path: "app.py",
   title: "Return value",
-  summary: "Stores the result before returning it.",
+  summary: "Replaced the returned literal with a named local.",
   oldStartLine: 2,
   oldEndLine: 2,
   newStartLine: 2,
@@ -17,14 +17,31 @@ const block: DiffBlockDissection = {
 };
 
 describe("matchDissectDiffBlock", () => {
-  it("matches new-side lines inside the change block", () => {
-    expect(matchDissectDiffBlock([block], "new", 2)?.block.id).toBe("b1");
-    expect(matchDissectDiffBlock([block], "new", 3)?.block.id).toBe("b1");
-    expect(matchDissectDiffBlock([block], "new", 4)).toBeNull();
+  it("matches added lines inside the change block", () => {
+    expect(
+      matchDissectDiffBlock([block], { side: "new", lineNumber: 2, type: "add" })?.block.id,
+    ).toBe("b1");
+    expect(
+      matchDissectDiffBlock([block], { side: "new", lineNumber: 3, type: "add" })?.block.id,
+    ).toBe("b1");
+    expect(matchDissectDiffBlock([block], { side: "new", lineNumber: 4, type: "add" })).toBeNull();
   });
 
-  it("matches old-side lines inside the change block", () => {
-    expect(matchDissectDiffBlock([block], "old", 2)?.block.id).toBe("b1");
-    expect(matchDissectDiffBlock([block], "old", 1)).toBeNull();
+  it("matches removed lines inside the change block", () => {
+    expect(
+      matchDissectDiffBlock([block], { side: "old", lineNumber: 2, type: "remove" })?.block.id,
+    ).toBe("b1");
+    expect(
+      matchDissectDiffBlock([block], { side: "old", lineNumber: 1, type: "remove" }),
+    ).toBeNull();
+  });
+
+  it("ignores unchanged context even when the line number sits in the range", () => {
+    expect(
+      matchDissectDiffBlock([block], { side: "new", lineNumber: 2, type: "context" }),
+    ).toBeNull();
+    expect(
+      matchDissectDiffBlock([block], { side: "old", lineNumber: 2, type: "context" }),
+    ).toBeNull();
   });
 });

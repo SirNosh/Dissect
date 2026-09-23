@@ -92,7 +92,6 @@ import { isWeb } from "@/constants/platform";
 import { usePublishWorkingDiffAttachment, useWorkingDiff } from "@/git/use-working-diff";
 import type { CheckoutStatusPayload } from "@/git/use-status-query";
 import { DiffTooLargeState } from "@/git/diff-too-large-state";
-import { useDissectDiffBlocks } from "@/dissect/hooks/use-diff-dissection";
 import { openDesktopTarget, useDesktopOpenTargets } from "@/workspace/desktop-open-targets";
 import { PullRequestStateIcon } from "@/git/pull-request-state-icon";
 import { openExternalUrl } from "@/utils/open-external-url";
@@ -1454,7 +1453,6 @@ export function ChangesSurface({
   const { settings: appSettings } = useAppSettings();
   const { preferences, updatePreferences } = useChangesPreferences();
   const { t } = useTranslation();
-  const dissectBlocksByPath = useDissectDiffBlocks({ serverId, cwd });
   const isMobile = useIsCompactFormFactor();
   const canUseSplitLayout = isWeb && !isMobile;
   const instanceState = changesState ?? defaultChangesState;
@@ -1799,7 +1797,6 @@ export function ChangesSurface({
         collapseState={collapseState}
         displayPreferences={sharedDisplayPreferences}
         mode={workingMode}
-        dissectBlocksByPath={dissectBlocksByPath}
       />
     </DiffBodyContent>
   );
