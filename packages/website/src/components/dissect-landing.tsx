@@ -24,6 +24,8 @@ import "~/dissect.css";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
+const repositoryUrl = "https://github.com/SirNosh/Dissect";
+
 function publicAsset(file: string): string {
   return `${import.meta.env.BASE_URL}${file}`;
 }
@@ -289,7 +291,7 @@ export function DissectLanding() {
             Learning journey
           </a>
         </div>
-        <a className="ds-nav-cta" href="#demo">
+        <a className="ds-nav-cta" href={repositoryUrl} target="_blank" rel="noreferrer">
           See the product <ArrowUpRight size={15} />
         </a>
         <button
@@ -318,7 +320,12 @@ export function DissectLanding() {
             understand.
           </p>
           <div className="ds-hero-actions">
-            <a href="#demo" className="ds-button ds-button-primary">
+            <a
+              href={repositoryUrl}
+              className="ds-button ds-button-primary"
+              target="_blank"
+              rel="noreferrer"
+            >
               Explore Dissect <ArrowUpRight size={17} />
             </a>
             <a href="#how-it-works" className="ds-button ds-button-outline">
