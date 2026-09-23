@@ -80,6 +80,9 @@ test("Dissect shows the supplied product screenshots", async ({ page }) => {
   await expect(image).toHaveAttribute("src", "/dissect-workspace.png");
   const featureArt = page.locator(".ds-feature-art").first();
   await expect(featureArt).toBeVisible();
+  const architectureImage = featureArt.getByRole("img");
+  await expect(architectureImage).toHaveAttribute("src", "/dissect-architecture.png");
+  await expect(architectureImage).toHaveJSProperty("naturalWidth", 712);
   const featureBounds = await featureArt.boundingBox();
   expect(featureBounds?.height).toBeGreaterThanOrEqual(500);
   await expect(page.getByRole("heading", { name: "Dissect evolves with you." })).toBeVisible();

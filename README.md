@@ -17,6 +17,12 @@ Dissect runs a local daemon that manages coding agents (Claude Code, Codex, Copi
 - **Comprehension:** architecture maps, file explanations, and block-level change analysis.
 - **Clients:** desktop, web, and CLI.
 
+The project site is at <https://sirnosh.github.io/Dissect/>.
+
+## Origin
+
+Dissect started as a hackathon project built on [Paseo](https://github.com/getpaseo/paseo). Paseo is the original repository: the local daemon, the agent clients, and the desktop shell. Dissect keeps that foundation and adds the comprehension layer for the codebase and for the changes coding agents make.
+
 ## Install
 
 Same shape as a global CLI install. The command name is `dissect`.

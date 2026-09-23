@@ -1311,13 +1311,13 @@ body:has(.dissect-site) {
     border-right: 0;
     border-block: 1px solid #354030;
   }
-  .ds-feature-art:has(img[src="/dissect-workspace.png"]) {
-    aspect-ratio: 1915 / 1069;
+  .ds-feature-art:has(img[src$="dissect-architecture.png"]) {
+    aspect-ratio: 712 / 1069;
   }
-  .ds-feature-art:has(img[src="/dissect-code.png"]) {
+  .ds-feature-art:has(img[src$="dissect-code.png"]) {
     aspect-ratio: 709 / 1070;
   }
-  .ds-feature-art:has(img[src="/dissect-changes.png"]) {
+  .ds-feature-art:has(img[src$="dissect-changes.png"]) {
     aspect-ratio: 706 / 1064;
   }
 }
@@ -1330,8 +1330,8 @@ body:has(.dissect-site) {
     padding: 9px 6px;
     font-size: 10px;
   }
-  .ds-screenshot-frame:has(img[src="/dissect-code.png"]),
-  .ds-screenshot-frame:has(img[src="/dissect-changes.png"]) {
+  .ds-screenshot-frame:has(img[src$="dissect-code.png"]),
+  .ds-screenshot-frame:has(img[src$="dissect-changes.png"]) {
     aspect-ratio: 709/1070;
   }
 }

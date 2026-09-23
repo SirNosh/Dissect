@@ -24,28 +24,42 @@ import "~/dissect.css";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
+function publicAsset(file: string): string {
+  return `${import.meta.env.BASE_URL}${file}`;
+}
+
 const screenshots = [
   {
-    src: "/dissect-workspace.png",
+    src: publicAsset("dissect-workspace.png"),
     label: "Architecture",
     alt: "Dissect workspace with an agent conversation and the BillSplitter architecture map",
     width: 1915,
     height: 1069,
   },
   {
-    src: "/dissect-code.png",
+    src: publicAsset("dissect-code.png"),
     label: "Code explanations",
     alt: "Dissect explains bill sanitization beside annotated Python source code",
     width: 709,
     height: 1070,
   },
   {
-    src: "/dissect-changes.png",
+    src: publicAsset("dissect-changes.png"),
     label: "Change analysis",
     alt: "Dissect change analysis showing modified files, architecture impact, and key concepts",
     width: 706,
     height: 1064,
   },
+];
+const featureScreenshots = [
+  {
+    src: publicAsset("dissect-architecture.png"),
+    alt: "Dissect architecture pane mapping the BillSplitter codebase and its key concepts",
+    width: 712,
+    height: 1069,
+  },
+  screenshots[1],
+  screenshots[2],
 ];
 const features = [
   {
@@ -97,7 +111,7 @@ const questions = [
 function Brand() {
   return (
     <a href="#" className="ds-brand" aria-label="Dissect home">
-      <img src="/dissect.svg" width="29" height="29" alt="" />
+      <img src={publicAsset("dissect.svg")} width="29" height="29" alt="" />
       dissect<span className="ds-brand-dot">.</span>
     </a>
   );
@@ -163,7 +177,7 @@ function ProductScreenshots() {
 }
 
 function FeatureArt({ index }: { index: number }) {
-  const screenshot = screenshots[index];
+  const screenshot = featureScreenshots[index];
   return (
     <div className="ds-feature-art">
       <img
@@ -519,7 +533,8 @@ export function DissectLanding() {
               <strong>Your code is the source of truth.</strong>
               <span>
                 Analysis runs when you ask. Selected source goes to your configured model. Agent
-                transcripts stay out.
+                transcripts stay out. Images are provided by the Grok API, while code dissections
+                are provided by the Gemini API.
               </span>
             </div>
           </div>
@@ -551,7 +566,7 @@ export function DissectLanding() {
       </section>
       <section className="ds-final ds-container">
         <div className="ds-final-mark">
-          <img src="/dissect.svg" width="48" height="48" alt="" />
+          <img src={publicAsset("dissect.svg")} width="48" height="48" alt="" />
         </div>
         <p className="ds-kicker">THE CODE IS YOURS. THE UNDERSTANDING SHOULD BE, TOO.</p>
         <h2>

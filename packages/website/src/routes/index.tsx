@@ -20,7 +20,7 @@ export const Route = createFileRoute("/")({
       { name: "theme-color", content: "#111512" },
     ],
     links: [
-      { rel: "icon", href: "/dissect.svg", type: "image/svg+xml" },
+      { rel: "icon", href: `${import.meta.env.BASE_URL}dissect.svg`, type: "image/svg+xml" },
       {
         rel: "stylesheet",
         href: "https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700,900&display=swap",
