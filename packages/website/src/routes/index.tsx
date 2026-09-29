@@ -17,7 +17,7 @@ export const Route = createFileRoute("/")({
           "The comprehension layer for your coding agent. Explore the architecture. Understand the changes. Own your code.",
       },
       { property: "og:site_name", content: "Dissect" },
-      { name: "theme-color", content: "#111512" },
+      { name: "theme-color", content: "#10192f" },
     ],
     links: [
       { rel: "icon", href: `${import.meta.env.BASE_URL}dissect.svg`, type: "image/svg+xml" },
